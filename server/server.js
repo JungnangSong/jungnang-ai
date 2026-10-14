@@ -27,7 +27,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3.5:4b';
 const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
 // Gemini 무료 API: .env / Render 환경변수의 GEMINI_API_KEY (Claude 키가 없을 때 우선 사용)
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 async function geminiChat(system, user) {
   const r = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
@@ -37,7 +37,7 @@ async function geminiChat(system, user) {
       body: JSON.stringify({
         systemInstruction: { parts: [{ text: system }] },
         contents: [{ role: 'user', parts: [{ text: user }] }],
-        generationConfig: { maxOutputTokens: 1500, thinkingConfig: { thinkingBudget: 0 } },
+        generationConfig: { maxOutputTokens: 4000 },
       }),
     }
   );
