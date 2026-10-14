@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>중랑AI</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="top">
+      <div class="brand">
+        <span class="logo">중</span>
+        <div><h1>중랑AI</h1><p>중랑구청 공개 문서를 근거로 답해요</p></div>
+      </div>
+      <div class="chips" id="chips" aria-label="추천 질문"></div>
+    </header>
+    <main id="log" class="log" aria-live="polite">
+      <div class="msg bot"><div class="bubble">안녕하세요! 중랑구 업무계획·성과관리계획·구정백서 등 공개 문서에서 찾아 답해 드려요. 위 추천 질문을 눌러 보거나 직접 물어보세요.</div></div>
+    </main>
+    <form id="form" class="composer">
+      <textarea id="input" rows="1" maxlength="500" placeholder="궁금한 점을 입력하세요" aria-label="질문 입력"></textarea>
+      <button id="send" type="submit" aria-label="보내기">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3 20.5v-6.2l9-2.3-9-2.3V3.5L22 12z"/></svg>
+      </button>
+    </form>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
