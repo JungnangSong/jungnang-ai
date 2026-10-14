@@ -22,7 +22,44 @@ console.log(`문서 조각 ${index.docs.length.toLocaleString()}개 로드`);
 const key = process.env.ANTHROPIC_API_KEY;
 const keyOk = key && !key.includes('여기에');
 const client = keyOk ? new Anthropic({ apiKey: key }) : null;
-if (!keyOk) console.warn('⚠ .env 에 ANTHROPIC_API_KEY 가 설정되지 않았습니다. 답변 생성이 동작하지 않습니다.');
+// API 키가 없으면 로컬 Ollama(무료)로 답변 생성. 모델은 .env 의 OLLAMA_MODEL 로 변경
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'qwen3.5:4b';
+const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+// Gemini 무료 API: .env / Render 환경변수의 GEMINI_API_KEY (Claude 키가 없을 때 우선 사용)
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+async function geminiChat(system, user) {
+  const r = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_KEY },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: 'user', parts: [{ text: user }] }],
+        generationConfig: { maxOutputTokens: 1500, thinkingConfig: { thinkingBudget: 0 } },
+      }),
+    }
+  );
+  if (!r.ok) throw new Error(`Gemini ${r.status} ${(await r.text()).slice(0, 200)}`);
+  const j = await r.json();
+  return (j.candidates?.[0]?.content?.parts || []).map((x) => x.text || '').join('');
+}
+async function ollamaChat(system, user) {
+  const r = await fetch(`${OLLAMA_URL}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: OLLAMA_MODEL,
+      stream: false,
+      think: false,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+    }),
+  });
+  if (!r.ok) throw new Error(`Ollama ${r.status}`);
+  return (await r.json()).message.content;
+}
+if (!keyOk) console.warn(GEMINI_KEY ? `Claude 키 없음 → Gemini(${GEMINI_MODEL})로 답변 생성` : `Claude/Gemini 키 없음 → 로컬 Ollama(${OLLAMA_MODEL})로 답변 생성`);
 
 const SYSTEM = `당신은 중랑구청 공개 문서를 근거로 답하는 '중랑AI' 입니다.
 규칙:
@@ -80,21 +117,26 @@ app.post('/api/chat', rateLimit, async (req, res) => {
   if (!hits.length || hits[0].score < MIN_SCORE || hits[0].coverage < MIN_COVERAGE) {
     return res.json({ answer: NOT_FOUND, sources: [] });
   }
-  if (!client) {
-    return res.status(500).json({ error: '서버에 API 키가 설정되지 않았습니다. .env 파일을 확인하세요.' });
-  }
 
   const material = hits
     .map((h, i) => `[${i + 1}] 문서: ${h.doc} (${h.format}, ${h.loc})\n${h.text}`)
     .join('\n\n---\n\n');
   try {
-    const r = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1000,
-      system: SYSTEM,
-      messages: [{ role: 'user', content: `<자료>\n${material}\n</자료>\n\n질문: ${question}` }],
-    });
-    let text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    const userMsg = `<자료>\n${material}\n</자료>\n\n질문: ${question}`;
+    let text;
+    if (client) {
+      const r = await client.messages.create({
+        model: MODEL,
+        max_tokens: 1000,
+        system: SYSTEM,
+        messages: [{ role: 'user', content: userMsg }],
+      });
+      text = r.content.filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    } else if (GEMINI_KEY) {
+      text = (await geminiChat(SYSTEM, userMsg)).trim();
+    } else {
+      text = (await ollamaChat(SYSTEM, userMsg)).trim();
+    }
     const m = text.match(/\n?\s*사용한 자료:\s*\[([\d,\s]+)\]\s*$/);
     let used = [];
     if (m) {
